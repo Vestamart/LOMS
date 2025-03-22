@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+
+option go_package = "github.com/vestamart/homework/pkg/api/loms/v1;loms";
+
+service Loms {
+  rpc OrderCreate (OrderCreateRequest) returns (OrderCreateResponse) {}
+  rpc OrderInfo (OrderInfoRequest) returns (OrderInfoResponse) {}
+  rpc OrderPay (OrderPayRequest) returns (OrderPayResponse) {}
+  rpc OrderCancel (OrderCancelRequest) returns (OrderCancelResponse) {}
+  rpc StocksInfo (StocksInfoRequest) returns (StocksInfoResponse) {}
+}
+// Статусы заказа
+enum OrderStatus {
+  NEW = 0;              // Новый заказ
+  AWAITING_PAYMENT = 1; // Ожидает оплату
+  FAILED = 2;           // Неудача
+  PAYED = 3;            // Оплачен
+  CANCELLED = 4;        // Отменен
+}
+
+// Вложенная структура
+message Item {
+  uint32 sku = 1;
+  uint32 count = 2;
+}
+
+// OrderCreate
+message OrderCreateRequest {
+  int64 user = 1;
+  repeated Item items = 2;
+}
+
+message OrderCreateResponse {
+  int64 orderId = 1;
+}
+
+// OrderInfo
+message OrderInfoRequest {
+  int64 orderId = 1;
+}
+
+message OrderInfoResponse{
+  OrderStatus status = 1;
+  int64 user = 2;
+  repeated Item items = 3;
+}
+
+// OrderPay
+message OrderPayRequest {
+    int64 orderID = 1;
+}
+
+message OrderPayResponse{}
+
+// OrderCancel
+message  OrderCancelRequest {
+  int64 orderID = 1;
+}
+
+message OrderCancelResponse{}
+
+// StocksInfo
+message StocksInfoRequest {
+  uint32 sku = 1;
+}
+
+message StocksInfoResponse {
+  uint64 count = 1;
+}

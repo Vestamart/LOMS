@@ -1,0 +1,2 @@
+loms_server:
+  gRPCport: "50051"
