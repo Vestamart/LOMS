@@ -1,16 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/vestamart/loms/internal/app/loms"
 	"github.com/vestamart/loms/internal/config"
 	"github.com/vestamart/loms/internal/delivery"
 	"github.com/vestamart/loms/internal/mw"
-	"github.com/vestamart/loms/internal/repository"
+	"github.com/vestamart/loms/internal/repository/postgres"
 	desc "github.com/vestamart/loms/pkg/api/loms/v1"
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"time"
 )
 
 func main() {
@@ -27,17 +29,22 @@ func main() {
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
 		mw.Panic,
 		mw.Logger,
-		mw.Panic,
 	))
 
-	//reflection.Register(grpcServer)
-
-	ordersRepo := repository.NewInMemoryOrderRepository(100)
-	stocksRepo, err := repository.NewInMemoryStocksRepositoryFromFile()
+	dsn := "postgres://root:root@postgres:5432/loms_db?sslmode=disable"
+	dbConn, err := mw.ConnectWithRetry(context.Background(), dsn, 10, 5*time.Second)
 	if err != nil {
-		panic(err)
+		panic("Failed to connect to database: " + err.Error())
 	}
-	service := loms.NewService(ordersRepo, stocksRepo)
+
+	orderRepoPostgres := postgres.NewOrderRepositoryPostgres(dbConn)
+	//ordersRepo := repository.NewInMemoryOrderRepository(100)
+	//stocksRepo, err := repository.NewInMemoryStocksRepositoryFromFile()
+	stocksRepoPostgres := postgres.NewStocksRepositoryPostgres(dbConn)
+	//if err != nil {
+	//	panic(err)
+	//}
+	service := loms.NewService(orderRepoPostgres, stocksRepoPostgres)
 
 	controller := delivery.NewServer(*service)
 

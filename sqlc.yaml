@@ -1,0 +1,18 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/repository/postgres/query.sql"
+    schema: "migrations"
+    gen:
+      go:
+        package: "postgres"
+        out: "internal/repository/postgres"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_pointers_for_null_types: true
+        emit_result_struct_pointers: true
+        emit_params_struct_pointers: true
+        omit_unused_structs: true
+        overrides:
+          - column: "get_info_from_orders.items"
+            go_type: "[]internal/domain.Item"

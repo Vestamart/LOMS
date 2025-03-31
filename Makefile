@@ -82,3 +82,18 @@ NOTES_PROTO_PATH := "api/loms/v1"
     --go-grpc_opt paths=source_relative \
 	api/loms/v1/loms.proto
 	go mod tidy
+	
+.PHONY: .install-goose
+.install-goose:
+	$(info Installing binary dependencies ... )
+	GOBIN=$(LOCAL_BIN) go install github.com/pressly/goose/v3/cmd/goose@v3.22.1 &&\
+	mv $(LOCAL_BIN)/goose.exe $(LOCAL_BIN)/goose
+
+
+.PHONY: .apply-migrations
+.apply-migrations:
+	bin/goose -dir migrations postgres "postgres://root:root@127.0.0.1:5432/postgres?sslmode=disable" up
+
+.PHONY: .rollback-migrations
+.rollback-migrations:
+	bin/goose -dir migrations postgres "postgres://root:root@127.0.0.1:5432/postgres?sslmode=disable" down

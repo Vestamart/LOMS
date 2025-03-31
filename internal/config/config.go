@@ -1,10 +1,8 @@
 package config
 
 import (
-	"fmt"
 	"gopkg.in/yaml.v3"
 	"os"
-	"path/filepath"
 )
 
 type ClientConfig struct {
@@ -24,8 +22,6 @@ type Config struct {
 }
 
 func LoadConfig(path string) (*Config, error) {
-	absPath, err := filepath.Abs(path)
-	fmt.Println(absPath)
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err

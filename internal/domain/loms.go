@@ -4,7 +4,7 @@ type OrderStatus int
 
 const (
 	New OrderStatus = iota
-	AwwaitingPayment
+	AwaitingPayment
 	Failed
 	Payed
 	Cancelled
@@ -17,8 +17,8 @@ type Order struct {
 }
 
 type Item struct {
-	Sku   uint32
-	Count uint32
+	Sku   uint32 `json:"sku"`
+	Count uint32 `json:"count"`
 }
 
 type StocksItem struct {

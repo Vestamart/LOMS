@@ -9,7 +9,6 @@ import (
 )
 
 // Error
-
 type SKUID = uint32
 
 type StocksRepository = map[SKUID]domain.StocksItem
@@ -78,25 +77,23 @@ func (r *InMemoryStocksRepository) ReserveRemove(_ context.Context, sku SKUID, c
 	return nil
 }
 
-func (r *InMemoryStocksRepository) ReserveCancel(_ context.Context, skus map[SKUID]uint32) error {
-	for sku, count := range skus {
-		v, ok := r.stocksRepository[sku]
-		if !ok {
-			return localErr.SKUNotExistErr
-		}
-		v.Reserved -= count
-		r.stocksRepository[sku] = v
+func (r *InMemoryStocksRepository) ReserveCancel(_ context.Context, sku SKUID, count uint32) error {
+	v, ok := r.stocksRepository[sku]
+	if !ok {
+		return localErr.SKUNotExistErr
 	}
+	v.Reserved -= count
+	r.stocksRepository[sku] = v
 	return nil
 }
 
-func (r *InMemoryStocksRepository) GetBySKU(_ context.Context, sku SKUID) (uint32, error) {
+func (r *InMemoryStocksRepository) GetBySKU(_ context.Context, sku SKUID) (uint32, uint32, error) {
 	v, ok := r.stocksRepository[sku]
 	if !ok {
-		return 0, localErr.SKUNotExistErr
+		return 0, 0, localErr.SKUNotExistErr
 	}
 
-	return v.TotalCount - v.Reserved, nil
+	return v.TotalCount, v.Reserved, nil
 }
 
 func (r *InMemoryStocksRepository) RollbackReserve(_ context.Context, skus map[SKUID]uint32) error {

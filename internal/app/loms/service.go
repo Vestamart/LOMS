@@ -21,9 +21,9 @@ type OrdersRepository interface {
 //go:generate minimock -i github.com/vestamart/loms/internal/app/loms.StocksStorage -o ./mock/stock_repository_mock.go -n StocksStorageMock -p mock
 type StocksStorage interface {
 	Reserve(_ context.Context, sku uint32, count uint32) error
-	ReserveRemove(_ context.Context, sku uint32, count uint32) error
+	ReserveRemove(_ context.Context, skus map[uint32]uint32) error
 	ReserveCancel(_ context.Context, skus map[uint32]uint32) error
-	GetBySKU(_ context.Context, sku uint32) (uint32, error)
+	GetBySKU(_ context.Context, sku uint32) (uint32, uint32, error)
 	RollbackReserve(_ context.Context, skus map[uint32]uint32) error
 }
 
@@ -50,22 +50,19 @@ func (s Service) OrderCreate(ctx context.Context, request *desc.OrderCreateReque
 		return nil, fmt.Errorf("failed to create order: %w", err)
 	}
 
-	var reservedSKUs = make(map[uint32]uint32)
-
 	for _, v := range items {
 		err = s.stocksRepository.Reserve(ctx, v.Sku, v.Count)
 		if err != nil {
-			if errRollback := s.stocksRepository.RollbackReserve(ctx, reservedSKUs); errRollback != nil {
-				return nil, fmt.Errorf("failed to rollback reserved items: %w", errRollback)
+			if errors.Is(err, localErr.ItemNotEnoughErr) {
+				if err = s.ordersRepository.SetStatus(ctx, orderId, domain.Failed); err != nil {
+					return nil, fmt.Errorf("failed to set status: %w", err)
+				}
+				return nil, fmt.Errorf("failed to reserve item: %w", err)
 			}
-			if errStatus := s.ordersRepository.SetStatus(ctx, orderId, domain.Failed); errStatus != nil {
-				return nil, fmt.Errorf("failed to set status: %w", errStatus)
-			}
-			return nil, fmt.Errorf("failed to reverse: %w", err)
+			return nil, fmt.Errorf("failed to reserve item: %w", err)
 		}
-		reservedSKUs[v.Sku] = v.Count
 	}
-	if err = s.ordersRepository.SetStatus(ctx, orderId, domain.AwwaitingPayment); err != nil {
+	if err = s.ordersRepository.SetStatus(ctx, orderId, domain.AwaitingPayment); err != nil {
 		return nil, fmt.Errorf("failed to set status: %w", err)
 	}
 
@@ -106,10 +103,13 @@ func (s Service) OrderPay(ctx context.Context, request *desc.OrderPayRequest) (*
 		return nil, fmt.Errorf("failed to get order %w", err)
 	}
 
+	items := make(map[uint32]uint32)
 	for _, v := range getByID.Items {
-		if err = s.stocksRepository.ReserveRemove(ctx, v.Sku, v.Count); err != nil {
-			return nil, fmt.Errorf("failed to reserve remove item: %w", err)
-		}
+		items[v.Sku] = v.Count
+	}
+
+	if err = s.stocksRepository.ReserveRemove(ctx, items); err != nil {
+		return nil, fmt.Errorf("failed to reserve remove item: %w", err)
 	}
 
 	err = s.ordersRepository.SetStatus(ctx, request.OrderID, domain.Payed)
@@ -120,7 +120,7 @@ func (s Service) OrderPay(ctx context.Context, request *desc.OrderPayRequest) (*
 }
 
 func (s Service) OrderCancel(ctx context.Context, request *desc.OrderCancelRequest) (*desc.OrderCancelResponse, error) {
-	rawResponse, err := s.ordersRepository.GetByID(ctx, request.OrderID)
+	getByID, err := s.ordersRepository.GetByID(ctx, request.OrderID)
 	if err != nil {
 		if errors.Is(err, localErr.OrderNotFoundErr) {
 			return nil, fmt.Errorf("failed to get order %w", err)
@@ -129,15 +129,12 @@ func (s Service) OrderCancel(ctx context.Context, request *desc.OrderCancelReque
 	}
 
 	items := make(map[uint32]uint32)
-	for _, v := range rawResponse.Items {
+	for _, v := range getByID.Items {
 		items[v.Sku] = v.Count
 	}
 
 	if err = s.stocksRepository.ReserveCancel(ctx, items); err != nil {
-		if errors.Is(err, localErr.OrderNotFoundErr) {
-			return nil, fmt.Errorf("failed to reserve cancel %w", err)
-		}
-		return nil, fmt.Errorf("failed to reserve cancel %w", err)
+		return nil, fmt.Errorf("failed to reserve remove item: %w", err)
 	}
 
 	if err = s.ordersRepository.SetStatus(ctx, request.OrderID, domain.Cancelled); err != nil {
@@ -146,10 +143,10 @@ func (s Service) OrderCancel(ctx context.Context, request *desc.OrderCancelReque
 }
 
 func (s Service) StocksInfo(ctx context.Context, request *desc.StocksInfoRequest) (*desc.StocksInfoResponse, error) {
-	v, err := s.stocksRepository.GetBySKU(ctx, request.Sku)
+	total, reserved, err := s.stocksRepository.GetBySKU(ctx, request.Sku)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stocks %w", err)
 	}
 
-	return &desc.StocksInfoResponse{Count: uint64(v)}, nil
+	return &desc.StocksInfoResponse{Count: uint64(total - reserved)}, nil
 }
