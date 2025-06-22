@@ -1,2 +1,10 @@
 loms_server:
   gRPCport: "50051"
+
+database:
+  host: "postgres"
+  port: "5432"
+  user: "root"
+  password: "root"
+  dbname: "loms_db"
+  sslmode: "disable"
