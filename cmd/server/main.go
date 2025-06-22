@@ -12,6 +12,9 @@ import (
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -21,9 +24,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.LOMSServer.Port))
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(
@@ -31,11 +35,20 @@ func main() {
 		mw.Logger,
 	))
 
-	dsn := "postgres://root:root@postgres:5432/loms_db?sslmode=disable"
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		cfg.Database.User,
+		cfg.Database.Password,
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.DBName,
+		cfg.Database.SSLMode,
+	)
+
 	dbConn, err := mw.ConnectWithRetry(context.Background(), dsn, 10, 5*time.Second)
 	if err != nil {
-		panic("Failed to connect to database: " + err.Error())
+		log.Fatal("Failed to connect to database: " + err.Error())
 	}
+	defer dbConn.Close(context.Background())
 
 	orderRepoPostgres := postgres.NewOrderRepositoryPostgres(dbConn)
 	//ordersRepo := repository.NewInMemoryOrderRepository(100)
@@ -49,8 +62,25 @@ func main() {
 	controller := delivery.NewServer(*service)
 
 	desc.RegisterLomsServer(grpcServer, controller)
-	log.Print("Server running on port: " + cfg.LOMSServer.Port)
-	if err = grpcServer.Serve(lis); err != nil {
-		panic(err)
-	}
+
+	// Graceful shutdown setup
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		log.Printf("Server running on port: %s", cfg.LOMSServer.Port)
+		if err = grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
+
+	<-stop
+	log.Println("Shutdown signal received")
+
+	// Graceful shutdown
+	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	grpcServer.GracefulStop()
+	log.Println("Server gracefully stopped")
 }

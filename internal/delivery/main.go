@@ -61,9 +61,10 @@ func (s Server) OrderPay(ctx context.Context, request *desc.OrderPayRequest) (*d
 		if errors.Is(err, localErr.OrderNotFoundErr) {
 			return nil, status.Errorf(codes.NotFound, "%s: %v", ops, err)
 		}
+		return nil, status.Errorf(codes.Internal, "%s: %v", ops, err)
 	}
 
-	return resp, status.Errorf(codes.OK, "%s: %v", ops, err)
+	return resp, nil
 }
 
 func (s Server) OrderCancel(ctx context.Context, request *desc.OrderCancelRequest) (*desc.OrderCancelResponse, error) {

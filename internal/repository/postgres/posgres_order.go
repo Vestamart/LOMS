@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/vestamart/loms/internal/domain"
-	"log"
 )
 
 type OrderRepositoryPostgres struct {
@@ -69,7 +68,6 @@ func (r OrderRepositoryPostgres) GetByID(ctx context.Context, orderID int64) (*d
 	if err != nil {
 		return nil, fmt.Errorf("get info from order failed: %w", err)
 	}
-	log.Printf("%T - %v\n", resp.Items, string(resp.Items))
 	var items []domain.Item
 	if err = json.Unmarshal(resp.Items, &items); err != nil {
 		return nil, fmt.Errorf("unmarshal items failed: %w", err)

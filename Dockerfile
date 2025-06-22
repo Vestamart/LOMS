@@ -32,3 +32,4 @@ EXPOSE 50051
 
 # Запускаем миграции и затем сервис
 CMD ["sh", "-c", "goose -dir ./migrations postgres 'postgres://root:root@postgres:5432/loms_db?sslmode=disable' up && ./loms-service"]
+    
